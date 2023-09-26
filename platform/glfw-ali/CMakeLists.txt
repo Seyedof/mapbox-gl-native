@@ -22,7 +22,13 @@ if(MBGL_WITH_OPENGL)
     target_sources(
         mbgl-glfw-ali
         PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/glfw_gl_backend.cpp
-    )
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui.cpp
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui_widgets.cpp
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui_tables.cpp
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui_draw.cpp
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui_demo.cpp
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/imgui_impl_mbgl.cpp
+        )
     target_compile_definitions(
         mbgl-glfw-ali
         PRIVATE MBGL_RENDER_BACKEND_OPENGL=1
@@ -35,6 +41,7 @@ target_include_directories(
         ${GLFW_INCLUDE_DIRS}
         # For /platform/default/src/mbgl/map/map_snapshotter.hpp
     PRIVATE ${PROJECT_SOURCE_DIR}/src
+    PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui
 )
 
 # Use target_link_directories when we move away from CMake 3.10.

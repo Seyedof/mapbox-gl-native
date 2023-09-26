@@ -28,6 +28,7 @@ public:
     GLFWView(bool fullscreen, bool benchmark, const mbgl::ResourceOptions &options);
     ~GLFWView() override;
 
+    static bool showUI;
     float getPixelRatio() const;
 
     void setMap(mbgl::Map*);
@@ -99,6 +100,7 @@ private:
     void popAnnotation();
 
     void makeSnapshot(bool withOverlay = false);
+    void SetupImGui();
 
     mbgl::AnnotationIDs annotationIDs;
     std::vector<std::string> spriteIDs;

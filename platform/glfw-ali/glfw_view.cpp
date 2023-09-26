@@ -3,6 +3,10 @@
 #include "glfw_renderer_frontend.hpp"
 #include "ny_route.hpp"
 #include "test_writer.hpp"
+#include "dummy_custom_layer.h"
+#include "third-party/imgui/imgui.h"
+#include "third-party/imgui/imgui_internal.h"
+#include "imgui_impl_mbgl.h"
 
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/gfx/backend.hpp>
@@ -42,6 +46,8 @@
 #include <fstream>
 #include <iostream>
 #include <utility>
+
+bool GLFWView::showUI = false;
 
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
 #include <mbgl/style/layers/location_indicator_layer.hpp>
@@ -228,6 +234,8 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_, const mbgl::ResourceOption
     printf("\n");
     printf("================================================================================\n");
     printf("\n");
+    
+    //SetupImGui();
 }
 
 GLFWView::~GLFWView() {
@@ -494,6 +502,25 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
             view->freeCameraDemoStartTime = mbgl::Clock::now();
             view->invalidate();
         } break;
+        case GLFW_KEY_V:
+        {
+            view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
+                "custom",
+                std::make_unique<DummyLayer>()));
+            //showUI = true;
+            // GLuint program = MBGL_CHECK_ERROR(platform::glCreateProgram());
+            // if (program == 0) {
+            //     std::cout<< "omg" << std::endl;
+            // }
+
+            //auto layer = std::make_unique<FillLayer>("landcover", "mapbox");
+            //layer->setSourceLayer("landcover");
+            //layer->setFillColor(Color{ 1.0, 1.0, 0.0, 1.0 });
+            //view->map->getStyle().addLayer(std::move(layer));
+            //std::cout<< "shit" << std::endl;
+             break;
+        }
+
         }
     }
 
@@ -900,6 +927,26 @@ void GLFWView::run() {
 
         glfwPollEvents();
 
+        if (0 && showUI) {
+            ImGui_ImplMBGL_NewFrame();
+            ImGui::NewFrame();
+            static bool show = true;
+            ImGui::ShowDemoWindow(&show);
+            ImGui::Render();
+        }
+
+        // // Rendering
+        //ImGui::Render();
+        //int display_w, display_h;
+        //glfwGetFramebufferSize(window, &display_w, &display_h);
+
+        //glViewport(0, 0, display_w, display_h);
+        //glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+        //glClear(GL_COLOR_BUFFER_BIT);
+
+        // glfwMakeContextCurrent(window);
+        // glfwSwapBuffers(window);
+
         if (dirty && rendererFrontend) {
             dirty = false;
             const double started = glfwGetTime();
@@ -915,6 +962,10 @@ void GLFWView::run() {
 
             if (freeCameraDemoPhase >= 0.0) {
                 updateFreeCameraDemo();
+            }
+            
+            if (0 && showUI) {
+                ImGui_ImplMBGL_RenderDrawData(ImGui::GetDrawData());
             }
 
             report(1000 * (glfwGetTime() - started));
@@ -1104,4 +1155,21 @@ void GLFWView::onWillStartRenderingFrame() {
         puck->setBearing(mbgl::style::Rotation(bearing));
     }
 #endif
+}
+
+void GLFWView::SetupImGui() {
+    // Setup Dear ImGui context
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    ImGui_ImplMBGL_Init();
+    // Setup Platform/Renderer backends
+    //ImGui_ImplGlfw_InitForOpenGL(window);
+    //ImGui_ImplOpenGL3_Init();
 }
