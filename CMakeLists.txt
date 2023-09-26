@@ -12,7 +12,7 @@ set(
 include(CTest)
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 option(MBGL_WITH_CORE_ONLY "Build only the core bits, no platform code" OFF)

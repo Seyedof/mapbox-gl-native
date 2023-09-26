@@ -48,6 +48,7 @@
 #include <utility>
 
 bool GLFWView::showUI = false;
+ DummyLayer* GLFWView::dummyLayer = nullptr;
 
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
 #include <mbgl/style/layers/location_indicator_layer.hpp>
@@ -235,7 +236,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_, const mbgl::ResourceOption
     printf("================================================================================\n");
     printf("\n");
     
-    //SetupImGui();
+    SetupImGui();
 }
 
 GLFWView::~GLFWView() {
@@ -507,11 +508,11 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
             view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
                 "custom",
                 std::make_unique<DummyLayer>()));
-            //showUI = true;
-            // GLuint program = MBGL_CHECK_ERROR(platform::glCreateProgram());
-            // if (program == 0) {
-            //     std::cout<< "omg" << std::endl;
-            // }
+
+            dummyLayer = reinterpret_cast<DummyLayer*>(view->map->getStyle().getLayer("custom"));
+
+            std::cout << "point1" << std::endl;
+            view->invalidate();
 
             //auto layer = std::make_unique<FillLayer>("landcover", "mapbox");
             //layer->setSourceLayer("landcover");
@@ -825,30 +826,35 @@ void GLFWView::onFramebufferResize(GLFWwindow *window, int width, int height) {
 
 void GLFWView::onMouseClick(GLFWwindow *window, int button, int action, int modifiers) {
     auto *view = reinterpret_cast<GLFWView *>(glfwGetWindowUserPointer(window));
+    if (!ImGui::IsAnyItemHovered() && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) {
+        if (button == GLFW_MOUSE_BUTTON_RIGHT ||
+            (button == GLFW_MOUSE_BUTTON_LEFT && modifiers & GLFW_MOD_CONTROL)) {
+            view->rotating = action == GLFW_PRESS;
+            view->map->setGestureInProgress(view->rotating);
+        } else if (button == GLFW_MOUSE_BUTTON_LEFT && (modifiers & GLFW_MOD_SHIFT)) {
+            view->pitching = action == GLFW_PRESS;
+            view->map->setGestureInProgress(view->pitching);
+        } else if (button == GLFW_MOUSE_BUTTON_LEFT) {
+            view->tracking = action == GLFW_PRESS;
+            view->map->setGestureInProgress(view->tracking);
 
-    if (button == GLFW_MOUSE_BUTTON_RIGHT ||
-        (button == GLFW_MOUSE_BUTTON_LEFT && modifiers & GLFW_MOD_CONTROL)) {
-        view->rotating = action == GLFW_PRESS;
-        view->map->setGestureInProgress(view->rotating);
-    } else if (button == GLFW_MOUSE_BUTTON_LEFT && (modifiers & GLFW_MOD_SHIFT)) {
-        view->pitching = action == GLFW_PRESS;
-        view->map->setGestureInProgress(view->pitching);
-    } else if (button == GLFW_MOUSE_BUTTON_LEFT) {
-        view->tracking = action == GLFW_PRESS;
-        view->map->setGestureInProgress(view->tracking);
-
-        if (action == GLFW_RELEASE) {
-            double now = glfwGetTime();
-            if (now - view->lastClick < 0.4 /* ms */) {
-                if (modifiers & GLFW_MOD_SHIFT) {
-                    view->map->scaleBy(0.5, mbgl::ScreenCoordinate { view->lastX, view->lastY }, mbgl::AnimationOptions{{mbgl::Milliseconds(500)}});
-                } else {
-                    view->map->scaleBy(2.0, mbgl::ScreenCoordinate { view->lastX, view->lastY }, mbgl::AnimationOptions{{mbgl::Milliseconds(500)}});
+            if (action == GLFW_RELEASE) {
+                double now = glfwGetTime();
+                if (now - view->lastClick < 0.4 /* ms */) {
+                    if (modifiers & GLFW_MOD_SHIFT) {
+                        view->map->scaleBy(0.5, mbgl::ScreenCoordinate { view->lastX, view->lastY }, mbgl::AnimationOptions{{mbgl::Milliseconds(500)}});
+                    } else {
+                        view->map->scaleBy(2.0, mbgl::ScreenCoordinate { view->lastX, view->lastY }, mbgl::AnimationOptions{{mbgl::Milliseconds(500)}});
+                    }
                 }
+                view->lastClick = now;
             }
-            view->lastClick = now;
         }
     }
+    else {
+        view->invalidate();
+    }
+    ImGui::GetIO().AddMouseButtonEvent(button, action == GLFW_PRESS);
 }
 
 void GLFWView::onMouseMove(GLFWwindow *window, double x, double y) {
@@ -909,6 +915,10 @@ void GLFWView::onMouseMove(GLFWwindow *window, double x, double y) {
         }
         view->invalidate();
     }
+    ImGui::GetIO().AddMousePosEvent(x, y);
+    if (ImGui::IsAnyItemHovered() || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) {
+        view->invalidate();
+    }
 }
 
 void GLFWView::onWindowFocus(GLFWwindow *window, int focused) {
@@ -927,7 +937,7 @@ void GLFWView::run() {
 
         glfwPollEvents();
 
-        if (0 && showUI) {
+        if (showUI) {
             ImGui_ImplMBGL_NewFrame();
             ImGui::NewFrame();
             static bool show = true;
@@ -958,16 +968,17 @@ void GLFWView::run() {
 
             mbgl::gfx::BackendScope scope { backend->getRendererBackend() };
 
+            if (showUI) {
+                dummyLayer->SetImGuiDrawData(ImGui::GetDrawData());
+                //ImGui_ImplMBGL_RenderDrawData();
+            }
+
             rendererFrontend->render();
 
             if (freeCameraDemoPhase >= 0.0) {
                 updateFreeCameraDemo();
             }
             
-            if (0 && showUI) {
-                ImGui_ImplMBGL_RenderDrawData(ImGui::GetDrawData());
-            }
-
             report(1000 * (glfwGetTime() - started));
             if (benchmark) {
                 invalidate();

@@ -16,6 +16,7 @@ struct GLFWwindow;
 class GLFWBackend;
 class GLFWRendererFrontend;
 class SnapshotObserver;
+class DummyLayer;
 
 namespace mbgl {
 namespace gfx {
@@ -154,6 +155,8 @@ private:
     std::unique_ptr<mbgl::MapSnapshotter> snapshotter;
     std::unique_ptr<SnapshotObserver> snapshotterObserver;
     mbgl::ResourceOptions mapResourceOptions;
+
+    static DummyLayer* dummyLayer;
 
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_CUSTOM_DISABLE_ALL)
     bool puckFollowsCameraCenter = false;

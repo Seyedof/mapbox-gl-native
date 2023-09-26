@@ -16,16 +16,16 @@ using namespace mbgl::platform;
 
 struct ImGui_ImplMBGL_Data
 {
-    GLuint          FontTexture;
+    //GLuint          FontTexture;
     //GLuint          ShaderHandle;
     //GLint           AttribLocationTex;       // Uniforms location
     //GLint           AttribLocationProjMtx;
     //GLuint          AttribLocationVtxPos;    // Vertex attributes location
     //GLuint          AttribLocationVtxUV;
     //GLuint          AttribLocationVtxColor;
-    unsigned int    VboHandle, ElementsHandle;
-    GLsizeiptr      VertexBufferSize;
-    GLsizeiptr      IndexBufferSize;
+    //unsigned int    VboHandle, ElementsHandle;
+    //GLsizeiptr      VertexBufferSize;
+    //GLsizeiptr      IndexBufferSize;
     bool            HasClipOrigin;
     bool            UseBufferSubData;
 
@@ -33,16 +33,16 @@ struct ImGui_ImplMBGL_Data
     //float           Time = 0.0f;
     //GLFWcursor*             MouseCursors[ImGuiMouseCursor_COUNT];
 
-    GLuint program = 0;
-    GLuint vertexShader = 0;
-    GLuint fragmentShader = 0;
+    //GLuint program = 0;
+    //GLuint vertexShader = 0;
+    //GLuint fragmentShader = 0;
     //GLuint buffer = 0;
-    GLuint a_pos = 0;
-    GLuint a_uv = 0;
-    GLuint a_color = 0;
+    //GLuint a_pos = 0;
+    //GLuint a_uv = 0;
+    //GLuint a_color = 0;
 
-    GLuint u_texture = 0;
-    GLuint u_projMatrix = 0;
+    //GLuint u_texture = 0;
+    //GLuint u_projMatrix = 0;
 
     ImGui_ImplMBGL_Data() { memset((void*)this, 0, sizeof(*this)); }
 };
@@ -93,10 +93,10 @@ bool ImGui_ImplMBGL_Init()
 
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
 
-    GLint current_texture;
-    mbgl::platform::glGetIntegerv(GL_TEXTURE_BINDING_2D, &current_texture);
+    // GLint current_texture;
+    // mbgl::platform::glGetIntegerv(GL_TEXTURE_BINDING_2D, &current_texture);
 
-    ImGui_ImplMBGL_CreateDeviceObjects();
+    // ImGui_ImplMBGL_CreateDeviceObjects();
 
     return true;
 }
@@ -150,11 +150,11 @@ void ImGui_ImplMBGL_NewFrame()
 
     //ImGui_ImplGlfw_UpdateMouseData();
     //ImGui_ImplGlfw_UpdateMouseCursor();
-    if (!bd->program)
-        return;//ImGui_ImplMBGL_CreateDeviceObjects();
+    //if (!bd->program)
+      //  return;//ImGui_ImplMBGL_CreateDeviceObjects();
 }
 
-bool ImGui_ImplMBGL_CreateDeviceObjects()
+/*bool ImGui_ImplMBGL_CreateDeviceObjects()
 {
     ImGui_ImplMBGL_Data* bd = ImGui_ImplMBGL_GetBackendData();
 
@@ -164,13 +164,6 @@ bool ImGui_ImplMBGL_CreateDeviceObjects()
     mbgl::platform::glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &last_array_buffer);
 
     std::cout << "shit3" << std::endl;
-
-/*static const GLchar* vertexShaderSource = R"MBGL_SHADER(
-attribute vec2 a_pos;
-void main() {
-     gl_Position = vec4(a_pos, 1, 1);
-}
-)MBGL_SHADER";*/
 
      static const GLchar* vertexShaderSource = R"MBGL_SHADER(
         attribute vec2 a_pos;
@@ -263,9 +256,9 @@ bool ImGui_ImplMBGL_CreateFontsTexture()
     MBGL_CHECK_ERROR(mbgl::platform::glBindTexture(GL_TEXTURE_2D, last_texture));
 
     return true;
-}
+}*/
 
-static void ImGui_ImplMBGL_SetupRenderState(ImDrawData* draw_data, int fb_width, int fb_height/*, GLuint vertex_array_object*/)
+/*static void ImGui_ImplMBGL_SetupRenderState(ImDrawData* draw_data, int fb_width, int fb_height)
 {
     ImGui_ImplMBGL_Data* bd = ImGui_ImplMBGL_GetBackendData();
 
@@ -380,7 +373,7 @@ void ImGui_ImplMBGL_RenderDrawData(ImDrawData* draw_data)
 #ifdef IMGUI_IMPL_OPENGL_USE_VERTEX_ARRAY
     MBGL_CHECK_ERROR(glGenVertexArrays(1, &vertex_array_object));
 #endif
-    ImGui_ImplMBGL_SetupRenderState(draw_data, fb_width, fb_height/*, vertex_array_object*/);
+    ImGui_ImplMBGL_SetupRenderState(draw_data, fb_width, fb_height);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = draw_data->DisplayPos;         // (0,0) unless using multi-viewports
@@ -430,7 +423,7 @@ void ImGui_ImplMBGL_RenderDrawData(ImDrawData* draw_data)
                 // User callback, registered via ImDrawList::AddCallback()
                 // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ;//ImGui_ImplMBGL_SetupRenderState(draw_data, fb_width, fb_height/*, vertex_array_object*/);
+                    ;//ImGui_ImplMBGL_SetupRenderState(draw_data, fb_width, fb_height);
                 else
                     pcmd->UserCallback(cmd_list, pcmd);
             }
@@ -505,3 +498,4 @@ void ImGui_ImplMBGL_RenderDrawData(ImDrawData* draw_data)
     //mbgl::platform::glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]);
     (void)bd; // Not all compilation paths use this
 }
+*/
