@@ -62,7 +62,7 @@ using namespace mbgl::platform;
 // layer implementation because it is intended to reflect how someone using custom layers
 // might actually write their own implementation.
 
-class DummyLayer : public mbgl::style::CustomLayerHost {
+class CustomUiLayer : public mbgl::style::CustomLayerHost {
 public:
     void initialize() override {
         {
@@ -210,11 +210,11 @@ public:
         RenderDrawData(ImGui::GetDrawData());
         std::cout << "no data" << std::endl;
 
-        MBGL_CHECK_ERROR(glUseProgram(program));
-        MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, buffer));
-        MBGL_CHECK_ERROR(glEnableVertexAttribArray(a_pos));
-        MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 2, GL_FLOAT, GL_FALSE, 0, nullptr));
-        MBGL_CHECK_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 3));
+        // MBGL_CHECK_ERROR(glUseProgram(program));
+        // MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, buffer));
+        // MBGL_CHECK_ERROR(glEnableVertexAttribArray(a_pos));
+        // MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 2, GL_FLOAT, GL_FALSE, 0, nullptr));
+        // MBGL_CHECK_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 3));
     }
 
     void contextLost() override {}

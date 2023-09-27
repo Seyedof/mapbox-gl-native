@@ -3,10 +3,10 @@
 #include "glfw_renderer_frontend.hpp"
 #include "ny_route.hpp"
 #include "test_writer.hpp"
-#include "dummy_custom_layer.h"
 #include "third-party/imgui/imgui.h"
 #include "third-party/imgui/imgui_internal.h"
 #include "imgui_impl_mbgl.h"
+#include "custom_ui_layer.h"
 
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/gfx/backend.hpp>
@@ -48,7 +48,7 @@
 #include <utility>
 
 bool GLFWView::showUI = false;
- DummyLayer* GLFWView::dummyLayer = nullptr;
+ CustomUiLayer* GLFWView::customUiLayer = nullptr;
 
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
 #include <mbgl/style/layers/location_indicator_layer.hpp>
@@ -507,9 +507,9 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         {
             view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
                 "custom",
-                std::make_unique<DummyLayer>()));
+                std::make_unique<CustomUiLayer>()));
 
-            dummyLayer = reinterpret_cast<DummyLayer*>(view->map->getStyle().getLayer("custom"));
+            customUiLayer = reinterpret_cast<CustomUiLayer*>(view->map->getStyle().getLayer("custom"));
 
             std::cout << "point1" << std::endl;
             view->invalidate();
@@ -969,7 +969,7 @@ void GLFWView::run() {
             mbgl::gfx::BackendScope scope { backend->getRendererBackend() };
 
             if (showUI) {
-                dummyLayer->SetImGuiDrawData(ImGui::GetDrawData());
+                //customUiLayer->SetImGuiDrawData(ImGui::GetDrawData());
                 //ImGui_ImplMBGL_RenderDrawData();
             }
 
@@ -1169,18 +1169,13 @@ void GLFWView::onWillStartRenderingFrame() {
 }
 
 void GLFWView::SetupImGui() {
-    // Setup Dear ImGui context
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
 
     ImGui_ImplMBGL_Init();
-    // Setup Platform/Renderer backends
-    //ImGui_ImplGlfw_InitForOpenGL(window);
-    //ImGui_ImplOpenGL3_Init();
 }

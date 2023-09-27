@@ -42,6 +42,7 @@ target_include_directories(
         # For /platform/default/src/mbgl/map/map_snapshotter.hpp
     PRIVATE ${PROJECT_SOURCE_DIR}/src
     PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui
+    PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/tinygltf
 )
 
 # Use target_link_directories when we move away from CMake 3.10.
