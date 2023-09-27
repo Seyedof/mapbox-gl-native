@@ -7,6 +7,7 @@
 #include "third-party/imgui/imgui_internal.h"
 #include "imgui_impl_mbgl.h"
 #include "custom_ui_layer.h"
+#include "custom_3d_layer.h"
 
 #include <mbgl/annotation/annotation.hpp>
 #include <mbgl/gfx/backend.hpp>
@@ -49,6 +50,7 @@
 
 bool GLFWView::showUI = false;
  CustomUiLayer* GLFWView::customUiLayer = nullptr;
+ Custom3DLayer* GLFWView::custom3DLayer = nullptr;
 
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
 #include <mbgl/style/layers/location_indicator_layer.hpp>
@@ -506,10 +508,16 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         case GLFW_KEY_V:
         {
             view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
-                "custom",
+                "custom_ui",
                 std::make_unique<CustomUiLayer>()));
 
-            customUiLayer = reinterpret_cast<CustomUiLayer*>(view->map->getStyle().getLayer("custom"));
+            customUiLayer = reinterpret_cast<CustomUiLayer*>(view->map->getStyle().getLayer("custom_ui"));
+
+            view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
+                "custom_3d",
+                std::make_unique<Custom3DLayer>()));
+
+            custom3DLayer = reinterpret_cast<Custom3DLayer*>(view->map->getStyle().getLayer("custom_3d"));
 
             std::cout << "point1" << std::endl;
             view->invalidate();

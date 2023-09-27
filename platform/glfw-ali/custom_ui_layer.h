@@ -66,16 +66,6 @@ class CustomUiLayer : public mbgl::style::CustomLayerHost {
 public:
     void initialize() override {
         {
-            // // Setup Dear ImGui context
-            // ImGui::CreateContext();
-            // ImGuiIO& io = ImGui::GetIO(); (void)io;
-            // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-            // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-            // // Setup Dear ImGui style
-            // ImGui::StyleColorsDark();
-            // //ImGui::StyleColorsLight();
-            // ImGui_ImplMBGL_Init();
             GLint current_texture;
             mbgl::platform::glGetIntegerv(GL_TEXTURE_BINDING_2D, &current_texture);
 
@@ -197,12 +187,6 @@ public:
 
     void render(const mbgl::style::CustomLayerRenderParameters&) override {
 
-            // ImGui_ImplMBGL_NewFrame();
-            // ImGui::NewFrame();
-            // static bool show = true;
-            // ImGui::ShowDemoWindow(&show);
-            // ImGui::Render();
-            // ImGui_ImplMBGL_RenderDrawData(ImGui::GetDrawData());
         if (imguiDrawData) {
             std::cout << "has data" << std::endl;
             RenderDrawData(imguiDrawData);

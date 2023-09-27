@@ -17,6 +17,7 @@ class GLFWBackend;
 class GLFWRendererFrontend;
 class SnapshotObserver;
 class CustomUiLayer;
+class Custom3DLayer;
 
 namespace mbgl {
 namespace gfx {
@@ -157,6 +158,7 @@ private:
     mbgl::ResourceOptions mapResourceOptions;
 
     static CustomUiLayer* customUiLayer;
+    static Custom3DLayer* custom3DLayer;
 
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_CUSTOM_DISABLE_ALL)
     bool puckFollowsCameraCenter = false;
