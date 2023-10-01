@@ -32,10 +32,16 @@ using namespace tinygltf;
 
 class Custom3DLayer : public mbgl::style::CustomLayerHost {
 public:
-    typedef struct {
+    struct GLProgramState {
         std::map<std::string, GLint> attribs;
         std::map<std::string, GLint> uniforms;
-    } GLProgramState;
+    };
+
+    struct ModelDesc {
+        uint32_t id;
+        Model* model3D;
+        std::map<int, GLuint> bufferStates;
+    };
 
     void initialize() override {
         {
@@ -95,11 +101,12 @@ public:
             }
             MBGL_CHECK_ERROR(mbgl::platform::glAttachShader(program, fragmentShader));
             MBGL_CHECK_ERROR(mbgl::platform::glLinkProgram(program));
-            a_pos = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_pos"));
+            
+            /*a_pos = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_pos"));
             a_normal = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_normal"));
             a_uv = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_uv"));
 
-            u_texture = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_Texture"));
+            u_texture = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_Texture"));*/
             u_MVP = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "MVP"));
             
             std::cout << "point3" << std::endl;
@@ -108,23 +115,23 @@ public:
             MBGL_CHECK_ERROR(mbgl::platform::glBindTexture(GL_TEXTURE_2D, last_texture));
             MBGL_CHECK_ERROR(mbgl::platform::glBindBuffer(GL_ARRAY_BUFFER, last_array_buffer));
 
-            std::string err;
-            std::string warn;
+            LatLng latLng{};
+            Create3DModelAt(latLng);
 
-            bool ret = loader.LoadASCIIFromFile(&model3D, &err, &warn, "./Duck.gltf");
+            glUseProgram(program);
+            GLint vtloc = glGetAttribLocation(program, "a_pos");
+            GLint nrmloc = glGetAttribLocation(program, "a_normal");
+            GLint uvloc = glGetAttribLocation(program, "a_uv");
 
-            if (!warn.empty()) {
-                printf("Warn: %s\n", warn.c_str());
-            }
+            // GLint diffuseTexLoc = glGetUniformLocation(progId, "diffuseTex");
+            //GLint isCurvesLoc = glGetUniformLocation(program, "uIsCurves");
 
-            if (!err.empty()) {
-                printf("Err: %s\n", err.c_str());
-            }
-            assert(ret);
+            programState.attribs["POSITION"] = vtloc;
+            programState.attribs["NORMAL"] = nrmloc;
+            programState.attribs["TEXCOORD_0"] = uvloc;
+            // gGLProgramState.uniforms["diffuseTex"] = diffuseTexLoc;
+            //gGLProgramState.uniforms["isCurvesLoc"] = isCurvesLoc;
 
-            //modelVaoAndEbos = bindModel(model3D);
-            SetupMeshState();
-            
             GLFWView::show3D = true;
         }
 
@@ -171,18 +178,17 @@ static size_t ComponentTypeByteSize(int type) {
   }
 }
 
-    void SetupMeshState() {
-    {
-        for (size_t i = 0; i < model3D.bufferViews.size(); i++) {
-        const tinygltf::BufferView &bufferView = model3D.bufferViews[i];
+    void SetupMeshState(ModelDesc& model) {
+        for (size_t i = 0; i < model.model3D->bufferViews.size(); i++) {
+        const tinygltf::BufferView &bufferView = model.model3D->bufferViews[i];
         if (bufferView.target == 0) {
             std::cout << "WARN: bufferView.target is zero" << std::endl;
             continue;  // Unsupported bufferView.
         }
 
         int sparse_accessor = -1;
-        for (size_t a_i = 0; a_i < model3D.accessors.size(); ++a_i) {
-            const auto &accessor = model3D.accessors[a_i];
+        for (size_t a_i = 0; a_i < model.model3D->accessors.size(); ++a_i) {
+            const auto &accessor = model.model3D->accessors[a_i];
             if (accessor.bufferView == static_cast<int>(i)) {
             std::cout << i << " is used by accessor " << a_i << std::endl;
             if (accessor.sparse.isSparse) {
@@ -197,19 +203,23 @@ static size_t ComponentTypeByteSize(int type) {
             }
         }
 
-        const tinygltf::Buffer &buffer = model3D.buffers[bufferView.buffer];
+        const tinygltf::Buffer &buffer = model.model3D->buffers[bufferView.buffer];
         GLuint vb;
+        std::cout << "Here 5" << std::endl;
         glGenBuffers(1, &vb);
         glBindBuffer(bufferView.target, vb);
         std::cout << "buffer.size= " << buffer.data.size()
                     << ", byteOffset = " << bufferView.byteOffset << std::endl;
 
-        if (sparse_accessor < 0)
+        if (sparse_accessor < 0) {
+            std::cout << "Here 6" << std::endl;
             glBufferData(bufferView.target, bufferView.byteLength,
                         &buffer.data.at(0) + bufferView.byteOffset,
                         GL_STATIC_DRAW);
+        }
         else {
-            const auto accessor = model3D.accessors[sparse_accessor];
+            std::cout << "Here 7" << std::endl;
+            const auto accessor = model.model3D->accessors[sparse_accessor];
             // copy the buffer to a temporary one for sparse patching
             unsigned char *tmp_buffer = new unsigned char[bufferView.byteLength];
             memcpy(tmp_buffer, buffer.data.data() + bufferView.byteOffset,
@@ -221,12 +231,12 @@ static size_t ComponentTypeByteSize(int type) {
                 ComponentTypeByteSize(accessor.sparse.indices.componentType);
 
             const auto &indices_buffer_view =
-                model3D.bufferViews[accessor.sparse.indices.bufferView];
-            const auto &indices_buffer = model3D.buffers[indices_buffer_view.buffer];
+                model.model3D->bufferViews[accessor.sparse.indices.bufferView];
+            const auto &indices_buffer = model.model3D->buffers[indices_buffer_view.buffer];
 
             const auto &values_buffer_view =
-                model3D.bufferViews[accessor.sparse.values.bufferView];
-            const auto &values_buffer = model3D.buffers[values_buffer_view.buffer];
+                model.model3D->bufferViews[accessor.sparse.values.bufferView];
+            const auto &values_buffer = model.model3D->buffers[values_buffer_view.buffer];
 
             for (size_t sparse_index = 0; sparse_index < static_cast<size_t>(accessor.sparse.count); ++sparse_index) {
             int index = 0;
@@ -286,33 +296,21 @@ static size_t ComponentTypeByteSize(int type) {
             std::cout << "modified_buffer [" << p << "] = " << b[p] << '\n';
             }*/
 
+            std::cout << "Here 8" << std::endl;
             glBufferData(bufferView.target, bufferView.byteLength, tmp_buffer,
                         GL_STATIC_DRAW);
             delete[] tmp_buffer;
         }
+        std::cout << "Here 9" << std::endl;
         glBindBuffer(bufferView.target, 0);
+        std::cout << "Here 10" << std::endl;
 
-        bufferState[i] = vb;
+        model.bufferStates[i] = vb;
         }
+        std::cout << "Here 11" << std::endl;
     }
 
-    glUseProgram(program);
-    GLint vtloc = glGetAttribLocation(program, "a_pos");
-    GLint nrmloc = glGetAttribLocation(program, "a_normal");
-    GLint uvloc = glGetAttribLocation(program, "a_uv");
-
-    // GLint diffuseTexLoc = glGetUniformLocation(progId, "diffuseTex");
-    //GLint isCurvesLoc = glGetUniformLocation(program, "uIsCurves");
-
-    programState.attribs["POSITION"] = vtloc;
-    programState.attribs["NORMAL"] = nrmloc;
-    programState.attribs["TEXCOORD_0"] = uvloc;
-    // gGLProgramState.uniforms["diffuseTex"] = diffuseTexLoc;
-    //gGLProgramState.uniforms["isCurvesLoc"] = isCurvesLoc;
-    };
-
-
-    void DrawMesh(tinygltf::Model &model, const tinygltf::Mesh &mesh) {
+    void DrawMesh(Model &model3D, std::map<int, GLuint> &bufferStates, const tinygltf::Mesh &mesh) {
     //// Skip curves primitive.
     // if (gCurvesMesh.find(mesh.name) != gCurvesMesh.end()) {
     //  return;
@@ -340,8 +338,8 @@ static size_t ComponentTypeByteSize(int type) {
 
         for (; it != itEnd; it++) {
         assert(it->second >= 0);
-        const tinygltf::Accessor &accessor = model.accessors[it->second];
-        glBindBuffer(GL_ARRAY_BUFFER, bufferState[accessor.bufferView]);
+        const tinygltf::Accessor &accessor = model3D.accessors[it->second];
+        glBindBuffer(GL_ARRAY_BUFFER, bufferStates[accessor.bufferView]);
         //CheckErrors("bind buffer");
         int size = 1;
         if (accessor.type == TINYGLTF_TYPE_SCALAR) {
@@ -362,7 +360,7 @@ static size_t ComponentTypeByteSize(int type) {
             if (programState.attribs[it->first] >= 0) {
             // Compute byteStride from Accessor + BufferView combination.
             int byteStride =
-                accessor.ByteStride(model.bufferViews[accessor.bufferView]);
+                accessor.ByteStride(model3D.bufferViews[accessor.bufferView]);
             assert(byteStride != -1);
             glVertexAttribPointer(programState.attribs[it->first], size,
                                     accessor.componentType,
@@ -376,9 +374,9 @@ static size_t ComponentTypeByteSize(int type) {
         }
 
         const tinygltf::Accessor &indexAccessor =
-            model.accessors[primitive.indices];
+            model3D.accessors[primitive.indices];
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,
-                    bufferState[indexAccessor.bufferView]);
+                    bufferStates[indexAccessor.bufferView]);
         //CheckErrors("bind buffer");
         int mode = -1;
         if (primitive.mode == TINYGLTF_MODE_TRIANGLES) {
@@ -417,37 +415,6 @@ static size_t ComponentTypeByteSize(int type) {
     }
     }
 
-    #if 0  // TODO(syoyo): Implement
-    void DrawCurves(tinygltf::Scene &scene, const tinygltf::Mesh &mesh) {
-        (void)scene;
-
-        if (gCurvesMesh.find(mesh.name) == gCurvesMesh.end()) {
-            return;
-        }
-
-        if (programState.uniforms["isCurvesLoc"] >= 0) {
-            glUniform1i(programState.uniforms["isCurvesLoc"], 1);
-        }
-
-        GLCurvesState &state = gCurvesMesh[mesh.name];
-
-        if (programState.attribs["POSITION"] >= 0) {
-            glBindBuffer(GL_ARRAY_BUFFER, state.vb);
-            glVertexAttribPointer(programState.attribs["POSITION"], 3, GL_FLOAT,
-                    GL_FALSE, /* stride */ 0, BUFFER_OFFSET(0));
-            //CheckErrors("curve: vertex attrib pointer");
-            glEnableVertexAttribArray(programState.attribs["POSITION"]);
-            //CheckErrors("curve: enable vertex attrib array");
-        }
-
-        glDrawArrays(GL_LINES, 0, state.count);
-
-        if (programState.attribs["POSITION"] >= 0) {
-            glDisableVertexAttribArray(programState.attribs["POSITION"]);
-        }
-    }
-    #endif
-
     static void QuatToAngleAxis(const std::vector<double> quaternion,
                     double &outAngleDegrees,
                     double *axis) {
@@ -472,7 +439,7 @@ static size_t ComponentTypeByteSize(int type) {
     axis[2] = qz / denom;
     }
 
-    void DrawNode(tinygltf::Model &model, const tinygltf::Node &node) {
+    void DrawNode(tinygltf::Model &model, std::map<int, GLuint> &bufferStates, const tinygltf::Node &node) {
     // Apply xform
         glPushMatrix();
         if (node.matrix.size() == 16) {
@@ -507,37 +474,25 @@ static size_t ComponentTypeByteSize(int type) {
         // DrawCurves(scene, it->second);
         if (node.mesh > -1) {
             assert(node.mesh < static_cast<int>(model.meshes.size()));
-            DrawMesh(model, model.meshes[node.mesh]);
+            DrawMesh(model, bufferStates, model.meshes[node.mesh]);
         }
 
         // Draw child nodes.
         for (size_t i = 0; i < node.children.size(); i++) {
             assert(node.children[i] < static_cast<int>(model.nodes.size()));
-            DrawNode(model, model.nodes[node.children[i]]);
+            DrawNode(model, bufferStates, model.nodes[node.children[i]]);
         }
 
         glPopMatrix();
     }
 
-    void DrawModel(tinygltf::Model &model) {
-        #if 0
-            std::map<std::string, tinygltf::Mesh>::const_iterator it(scene.meshes.begin());
-            std::map<std::string, tinygltf::Mesh>::const_iterator itEnd(scene.meshes.end());
-
-            for (; it != itEnd; it++) {
-                DrawMesh(scene, it->second);
-                DrawCurves(scene, it->second);
-            }
-        #else
-        // If the glTF asset has at least one scene, and doesn't define a default one
-        // just show the first one we can find
-        assert(model.scenes.size() > 0);
-        int scene_to_display = model.defaultScene > -1 ? model.defaultScene : 0;
-        const tinygltf::Scene &scene = model.scenes[scene_to_display];
+    void drawModel(ModelDesc& model) {
+        assert(model.model3D->scenes.size() > 0);
+        int scene_to_display = model.model3D->defaultScene > -1 ? model.model3D->defaultScene : 0;
+        const tinygltf::Scene &scene = model.model3D->scenes[scene_to_display];
         for (size_t i = 0; i < scene.nodes.size(); i++) {
-            DrawNode(model, model.nodes[scene.nodes[i]]);
+            DrawNode(*model.model3D, model.bufferStates, model.model3D->nodes[scene.nodes[i]]);
         }
-        #endif
     }
 
     void build_rotmatrix(float m[4][4], const float q[4]) {
@@ -650,6 +605,7 @@ static size_t ComponentTypeByteSize(int type) {
     }
 
     void render(const mbgl::style::CustomLayerRenderParameters& renderParams)  override {
+        return;
         MBGL_CHECK_ERROR(glUseProgram(program));
 
         float MVP[16];
@@ -715,7 +671,9 @@ static size_t ComponentTypeByteSize(int type) {
         float scale = 1.0f;
         glScalef(scale, scale, scale); */
 
-        DrawModel(model3D);
+        for (auto model : models) {
+            drawModel(*model);
+        }
 
         /*glMatrixMode(GL_PROJECTION);
         glPopMatrix();*/
@@ -735,19 +693,45 @@ static size_t ComponentTypeByteSize(int type) {
     }
 
     void Create3DModelAt(LatLng&) {
-        for (int i = 0; i < 10; i++)
-            std::cout << "Create3DModel" << std::endl;
+        std::cout << "Create3DModel" << std::endl;
+
+        ModelDesc* model = new ModelDesc;
+        model->model3D = new Model;
+        TinyGLTF loader;
+        std::string err;
+        std::string warn;
+
+        bool ret = loader.LoadASCIIFromFile(model->model3D, &err, &warn, "/tmp/Duck.gltf");
+        std::cout << "Here 1" << std::endl;
+
+        if (!warn.empty()) {
+            printf("Warn: %s\n", warn.c_str());
+        }
+
+        if (!err.empty()) {
+            printf("Err: %s\n", err.c_str());
+        }
+        assert(ret);
+
+        std::cout << "Here 2" << std::endl;
+        SetupMeshState(*model);
+        std::cout << "Here 3" << std::endl;
+
+        models.push_back(model);
+        std::cout << "Here 4" << std::endl;
     }
 
     GLuint program = 0;
     GLuint vertexShader = 0;
     GLuint fragmentShader = 0;
     
-    std::map<int, GLuint> bufferState;
+    std::vector<ModelDesc*> models;
+
+    //std::map<int, GLuint> bufferState;
     GLProgramState programState;
 
-    Model model3D;
-    TinyGLTF loader;
+    //Model model3D;
+    //TinyGLTF loader;
 
     GLuint a_pos = 0;
     GLuint a_uv = 0;

@@ -49,6 +49,8 @@
 #include <utility>
 
 bool GLFWView::showUI = false;
+bool GLFWView::show3D = false;
+bool GLFWView::createModelMode = false;
  CustomUiLayer* GLFWView::customUiLayer = nullptr;
  Custom3DLayer* GLFWView::custom3DLayer = nullptr;
 
@@ -238,7 +240,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_, const mbgl::ResourceOption
     printf("================================================================================\n");
     printf("\n");
     
-    SetupImGui();
+    setupImGui();
 }
 
 GLFWView::~GLFWView() {
@@ -507,9 +509,9 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         } break;
         case GLFW_KEY_V:
         {
-            view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
-                "custom_ui",
-                std::make_unique<CustomUiLayer>()));
+             view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
+                 "custom_ui",
+                 std::make_unique<CustomUiLayer>()));
 
             customUiLayer = reinterpret_cast<CustomUiLayer*>(view->map->getStyle().getLayer("custom_ui"));
 
@@ -519,7 +521,6 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
 
             custom3DLayer = reinterpret_cast<Custom3DLayer*>(view->map->getStyle().getLayer("custom_3d"));
 
-            std::cout << "point1" << std::endl;
             view->invalidate();
 
             //auto layer = std::make_unique<FillLayer>("landcover", "mapbox");
@@ -858,6 +859,14 @@ void GLFWView::onMouseClick(GLFWwindow *window, int button, int action, int modi
                 view->lastClick = now;
             }
         }
+
+        if (createModelMode) {
+            std::cout << "Hello 1!!!" << std::endl;
+            auto& io = ImGui::GetIO();
+            ImVec2 pos = io.MousePos;
+            auto latLong = view->map->latLngForPixel({pos.x, pos.y});
+            custom3DLayer->Create3DModelAt(latLong);
+        }
     }
     else {
         view->invalidate();
@@ -945,14 +954,8 @@ void GLFWView::run() {
 
         glfwPollEvents();
 
-        if (showUI) {
-            ImGui_ImplMBGL_NewFrame();
-            ImGui::NewFrame();
-            static bool show = true;
-            ImGui::ShowDemoWindow(&show);
-            ImGui::Render();
-        }
-
+        updateGui();
+        
         // // Rendering
         //ImGui::Render();
         //int display_w, display_h;
@@ -975,11 +978,6 @@ void GLFWView::run() {
             updateAnimatedAnnotations();
 
             mbgl::gfx::BackendScope scope { backend->getRendererBackend() };
-
-            if (showUI) {
-                //customUiLayer->SetImGuiDrawData(ImGui::GetDrawData());
-                //ImGui_ImplMBGL_RenderDrawData();
-            }
 
             rendererFrontend->render();
 
@@ -1176,14 +1174,44 @@ void GLFWView::onWillStartRenderingFrame() {
 #endif
 }
 
-void GLFWView::SetupImGui() {
+void GLFWView::setupImGui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
+ 
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
-
+ 
     ImGui_ImplMBGL_Init();
+}
+
+void GLFWView::updateGui() {
+    if (showUI) {
+        ImGui_ImplMBGL_NewFrame();
+        ImGui::NewFrame();
+
+        static bool showImGuiDemo = false;
+        
+        ImGui::Begin("Main Menu", nullptr);
+        ImGui::Checkbox("Show demo window", &showImGuiDemo);
+        if (showImGuiDemo) {
+            ImGui::ShowDemoWindow(nullptr);
+        }
+
+        ImGui::Checkbox("Create 3D Model On Map", &createModelMode);
+
+        if (!ImGui::IsAnyItemHovered() && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) {
+            auto& io = ImGui::GetIO();
+            ImVec2 pos = io.MousePos;
+            auto latLong = map->latLngForPixel({pos.x, pos.y});
+            ImGui::BeginTooltip();
+            ImGui::Text("%f, %f", latLong.latitude(), latLong.longitude());
+            ImGui::EndTooltip();
+            
+            invalidate();
+        }
+
+        ImGui::End();
+        
+        ImGui::Render();
+    }
 }

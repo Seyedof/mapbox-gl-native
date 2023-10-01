@@ -31,6 +31,8 @@ public:
     ~GLFWView() override;
 
     static bool showUI;
+    static bool show3D;
+    static bool createModelMode;
     float getPixelRatio() const;
 
     void setMap(mbgl::Map*);
@@ -102,7 +104,8 @@ private:
     void popAnnotation();
 
     void makeSnapshot(bool withOverlay = false);
-    void SetupImGui();
+    void setupImGui();
+    void updateGui();
 
     mbgl::AnnotationIDs annotationIDs;
     std::vector<std::string> spriteIDs;

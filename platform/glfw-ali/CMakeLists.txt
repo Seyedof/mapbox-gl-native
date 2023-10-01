@@ -28,6 +28,11 @@ if(MBGL_WITH_OPENGL)
         PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui_draw.cpp
         PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/third-party/imgui/imgui_demo.cpp
         PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/imgui_impl_mbgl.cpp
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/tinygltf/tiny_gltf.h
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/tinygltf/stb_image.h
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/tinygltf/stb_image.h
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/tinygltf/stb_image_write.h
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw-ali/tinygltf/json.hpp
         )
     target_compile_definitions(
         mbgl-glfw-ali

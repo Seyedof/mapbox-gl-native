@@ -187,12 +187,11 @@ public:
 
     void render(const mbgl::style::CustomLayerRenderParameters&) override {
 
-        if (imguiDrawData) {
-            std::cout << "has data" << std::endl;
-            RenderDrawData(imguiDrawData);
-        }
+        //if (imguiDrawData) {
+            //std::cout << "has data" << std::endl;
+            //RenderDrawData(imguiDrawData);
+        //}
         RenderDrawData(ImGui::GetDrawData());
-        std::cout << "no data" << std::endl;
 
         // MBGL_CHECK_ERROR(glUseProgram(program));
         // MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, buffer));
@@ -283,7 +282,6 @@ public:
         if (!draw_data) {
             return;
         }
-        std::cout << "shit6" << std::endl;
 
         // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
         int fb_width = (int)(draw_data->DisplaySize.x * draw_data->FramebufferScale.x);
@@ -409,7 +407,6 @@ public:
                         MBGL_CHECK_ERROR(mbgl::platform::glDrawElementsBaseVertex(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx)), (GLint)pcmd->VtxOffset));
                     else
     #endif
-                    std::cout << "im drawing" << std::endl;
                     MBGL_CHECK_ERROR(mbgl::platform::glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, (void*)(intptr_t)(pcmd->IdxOffset * sizeof(ImDrawIdx))));
                 }
             }
