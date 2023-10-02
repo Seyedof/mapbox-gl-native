@@ -54,6 +54,8 @@ bool GLFWView::createModelMode = false;
  CustomUiLayer* GLFWView::customUiLayer = nullptr;
  Custom3DLayer* GLFWView::custom3DLayer = nullptr;
 
+extern LatLng gObjectLatLng;
+
 #if defined(MBGL_RENDER_BACKEND_OPENGL) && !defined(MBGL_LAYER_LOCATION_INDICATOR_DISABLE_ALL)
 #include <mbgl/style/layers/location_indicator_layer.hpp>
 
@@ -201,6 +203,7 @@ GLFWView::GLFWView(bool fullscreen_, bool benchmark_, const mbgl::ResourceOption
     printf("\n");
     printf("================================================================================\n");
     printf("\n");
+    printf("- Press `V` to add Ali's custom layers to the map\n");
     printf("- Press `S` to cycle through bundled styles\n");
     printf("- Press `X` to reset the transform\n");
     printf("- Press `N` to reset north\n");
@@ -509,26 +512,25 @@ void GLFWView::onKey(GLFWwindow *window, int key, int /*scancode*/, int action, 
         } break;
         case GLFW_KEY_V:
         {
-             view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
-                 "custom_ui",
-                 std::make_unique<CustomUiLayer>()));
+            if (view->map->getStyle().getLayer("custom_3d") == nullptr) {
+                view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
+                    "custom_3d",
+                    std::make_unique<Custom3DLayer>()));
 
-            customUiLayer = reinterpret_cast<CustomUiLayer*>(view->map->getStyle().getLayer("custom_ui"));
+                custom3DLayer = reinterpret_cast<Custom3DLayer*>(view->map->getStyle().getLayer("custom_3d"));
 
-            view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
-                "custom_3d",
-                std::make_unique<Custom3DLayer>()));
+                view->map->getStyle().addLayer(std::make_unique<CustomLayer>(
+                    "custom_ui",
+                    std::make_unique<CustomUiLayer>()));
 
-            custom3DLayer = reinterpret_cast<Custom3DLayer*>(view->map->getStyle().getLayer("custom_3d"));
+                customUiLayer = reinterpret_cast<CustomUiLayer*>(view->map->getStyle().getLayer("custom_ui"));
 
-            view->invalidate();
-
-            //auto layer = std::make_unique<FillLayer>("landcover", "mapbox");
-            //layer->setSourceLayer("landcover");
-            //layer->setFillColor(Color{ 1.0, 1.0, 0.0, 1.0 });
-            //view->map->getStyle().addLayer(std::move(layer));
-            //std::cout<< "shit" << std::endl;
-             break;
+                view->invalidate();
+            }
+            else {
+                mbgl::Log::Info(mbgl::Event::General, "Ali's layers already created");
+            }
+            break;
         }
 
         }
@@ -861,11 +863,10 @@ void GLFWView::onMouseClick(GLFWwindow *window, int button, int action, int modi
         }
 
         if (createModelMode) {
-            std::cout << "Hello 1!!!" << std::endl;
             auto& io = ImGui::GetIO();
             ImVec2 pos = io.MousePos;
             auto latLong = view->map->latLngForPixel({pos.x, pos.y});
-            custom3DLayer->Create3DModelAt(latLong);
+            custom3DLayer->Place3DModelAt(latLong);
         }
     }
     else {
@@ -956,18 +957,6 @@ void GLFWView::run() {
 
         updateGui();
         
-        // // Rendering
-        //ImGui::Render();
-        //int display_w, display_h;
-        //glfwGetFramebufferSize(window, &display_w, &display_h);
-
-        //glViewport(0, 0, display_w, display_h);
-        //glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-        //glClear(GL_COLOR_BUFFER_BIT);
-
-        // glfwMakeContextCurrent(window);
-        // glfwSwapBuffers(window);
-
         if (dirty && rendererFrontend) {
             dirty = false;
             const double started = glfwGetTime();
@@ -1190,27 +1179,32 @@ void GLFWView::updateGui() {
         ImGui::NewFrame();
 
         static bool showImGuiDemo = false;
-        
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.8);
+
         ImGui::Begin("Main Menu", nullptr);
         ImGui::Checkbox("Show demo window", &showImGuiDemo);
         if (showImGuiDemo) {
             ImGui::ShowDemoWindow(nullptr);
         }
 
-        ImGui::Checkbox("Create 3D Model On Map", &createModelMode);
+        ImGui::Checkbox("Place 3D Model On Map", &createModelMode);
 
         if (!ImGui::IsAnyItemHovered() && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) {
             auto& io = ImGui::GetIO();
             ImVec2 pos = io.MousePos;
             auto latLong = map->latLngForPixel({pos.x, pos.y});
+            
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.2, 0.5, 1.0, 0.9));
             ImGui::BeginTooltip();
             ImGui::Text("%f, %f", latLong.latitude(), latLong.longitude());
             ImGui::EndTooltip();
+            ImGui::PopStyleColor(1);
             
             invalidate();
         }
-
         ImGui::End();
+        
+        ImGui::PopStyleVar(1);
         
         ImGui::Render();
     }

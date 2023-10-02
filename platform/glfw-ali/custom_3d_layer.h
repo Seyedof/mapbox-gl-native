@@ -11,6 +11,7 @@
 #include <mbgl/gl/custom_layer.hpp>
 #include <mbgl/gl/defines.hpp>
 #include <mbgl/map/map.hpp>
+#include <mbgl/map/transform_state.hpp>
 #include <mbgl/map/map_options.hpp>
 #include <mbgl/platform/gl_functions.hpp>
 #include <mbgl/storage/resource_options.hpp>
@@ -19,6 +20,8 @@
 #include <mbgl/util/io.hpp>
 #include <mbgl/util/mat4.hpp>
 #include <mbgl/util/run_loop.hpp>
+#include <mbgl/util/projection.hpp>
+#include <mbgl/util/camera.hpp>
 #include <mbgl/gl/vertex_array_extension.hpp>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -30,6 +33,8 @@ using namespace tinygltf;
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
+LatLng gObjectLatLng{0.0, 0.0};
+
 class Custom3DLayer : public mbgl::style::CustomLayerHost {
 public:
     typedef struct {
@@ -39,9 +44,9 @@ public:
 
     void initialize() override {
         {
-            GLfloat triangle[] = {  -0.5, 0.0, -0.5, 
-                                     0.0, 0.0, 0.5,
-                                     0.5, 0.0, -0.5,};
+            GLfloat triangle[] = {  -0.5, -0.5, 0.0,
+                                     0.0, 0.5, 0.0,
+                                     0.5, -0.5, 0.0};
             MBGL_CHECK_ERROR(glGenBuffers(1, &mybuffer));
             MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, mybuffer));
             MBGL_CHECK_ERROR(glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(GLfloat), triangle, GL_STATIC_DRAW));
@@ -86,9 +91,6 @@ public:
             )MBGL_SHADER";
 
             program = MBGL_CHECK_ERROR(mbgl::platform::glCreateProgram());
-            if (program == 0) {
-                std::cout << "shit4" << std::endl;
-            }
             vertexShader = MBGL_CHECK_ERROR(mbgl::platform::glCreateShader(GL_VERTEX_SHADER));
             fragmentShader = MBGL_CHECK_ERROR(mbgl::platform::glCreateShader(GL_FRAGMENT_SHADER));
 
@@ -97,12 +99,6 @@ public:
             MBGL_CHECK_ERROR(mbgl::platform::glAttachShader(program, vertexShader));
             MBGL_CHECK_ERROR(mbgl::platform::glShaderSource(fragmentShader, 1, &fragmentShaderSource, nullptr));
             MBGL_CHECK_ERROR(mbgl::platform::glCompileShader(fragmentShader));
-            if (vertexShader == 0) {
-                std::cout << "shit4" << std::endl;
-            }
-            if (fragmentShader == 0) {
-                std::cout << "shit5" << std::endl;
-            }
             MBGL_CHECK_ERROR(mbgl::platform::glAttachShader(program, fragmentShader));
             MBGL_CHECK_ERROR(mbgl::platform::glLinkProgram(program));
             a_pos = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_pos"));
@@ -113,8 +109,6 @@ public:
             u_MVP = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "MVP"));
             u_WORLD = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "WORLD"));
             
-            std::cout << "point3" << std::endl;
-
             // Restore modified GL state
             MBGL_CHECK_ERROR(mbgl::platform::glBindTexture(GL_TEXTURE_2D, last_texture));
             MBGL_CHECK_ERROR(mbgl::platform::glBindBuffer(GL_ARRAY_BUFFER, last_array_buffer));
@@ -587,40 +581,88 @@ public:
         m[3][3] = 1;
     }
 
+    static double mercatorXfromLng(double lng) {
+        return (180.0 + lng) / 360.0;
+    }
+
+    static double mercatorYfromLat(double lat) {
+        return (180.0 - (180.0 / M_PI * std::log(std::tan(M_PI_4 + lat * M_PI / 360.0)))) / 360.0;
+    }
+
+    static vec3 toMercator(const LatLng& location, double altitudeMeters) {
+        const double pixelsPerMeter = 1.0 / Projection::getMetersPerPixelAtLatitude(location.latitude(), 0.0);
+        const double worldSize = Projection::worldSize(std::pow(2.0, 0.0));
+
+        return {{mercatorXfromLng(location.longitude()),
+                mercatorYfromLat(location.latitude()),
+                altitudeMeters * pixelsPerMeter / worldSize}};
+    }
+
+    Point<double> worldPosFromLatLng(const LatLng& latLng) {
+        double latitude = latLng.latitude();
+        return {256.0 * latLng.longitude() / 180.0 + 256.0, -256.0 * latitude / 85.0 + 256.0f};
+    }
+
     void render(const mbgl::style::CustomLayerRenderParameters& renderParams)  override {
         MBGL_CHECK_ERROR(glUseProgram(program));
 
         GLfloat MVP[16];
         for (int i = 0; i < 16; i++) {
             MVP[i] = renderParams.projectionMatrix[i];
-            //std::cout << renderParams.projectionMatrix[i] << " ,";
+            // std::cout << renderParams.projectionMatrix[i] << " ,";
             // if (((i+1) & 3) == 0)
             //     std::cout << std::endl;
         }
         // std::cout << std::endl;
 
-        std::cout << "width= " << renderParams.width << std::endl;
-        std::cout << "height= " << renderParams.height << std::endl;
-        std::cout << "lat= " << renderParams.latitude << std::endl;
-        std::cout << "long= " << renderParams.longitude << std::endl;
-        std::cout << "zoom= " << renderParams.zoom << std::endl;
-        std::cout << "bearing= " << renderParams.bearing << std::endl;
-        std::cout << "pitch= " << renderParams.pitch << std::endl;
-        std::cout << "fov= " << renderParams.fieldOfView << std::endl;
+        // std::cout << "width= " << renderParams.width << std::endl;
+        // std::cout << "height= " << renderParams.height << std::endl;
+        // std::cout << "lat= " << renderParams.latitude << std::endl;
+        // std::cout << "long= " << renderParams.longitude << std::endl;
+        // std::cout << "zoom= " << renderParams.zoom << std::endl;
+        // std::cout << "bearing= " << renderParams.bearing << std::endl;
+        // std::cout << "pitch= " << renderParams.pitch << std::endl;
+        // std::cout << "fov= " << renderParams.fieldOfView << std::endl;
 
-         std::cout << std::endl;
+        // std::cout << std::endl;
+
+        LatLng latLong {32.0, 52.0};
+
+        //auto merc = toMercator(latLong, 0);
+        // std::cout << merc[0] << " " << merc[1] << " " << merc[2] << std::endl;
+
+        //LatLng latLong2 {renderParams.latitude, renderParams.longitude};
+        //Point<double> p = mbgl::Projection::project(latLong2, pow(2.0, renderParams.zoom));
+        //auto p = mbgl::Projection::projectedMetersForLatLng(gObjectLatLng);
+        //std::cout << "Proj" << p.easting() << " " << p.northing() << std::endl;
+
+        mbgl::util::Camera camera;
+        //camera.
 
         GLfloat world[4][4];
-        memset(world, 0, 4 * 4 * 4);
-        world[0][0] = 1;
-        world[1][1] = -1;
-        world[2][2] = 1;
+        memset(world, 0, 4 * 4 * sizeof(float));
+        world[0][0] = 10;
+        world[1][1] = -10;
+        world[2][2] = 10;
         world[3][3] = 1;
 
-        world[3][0] = 500;
-        world[3][1] = 400;
-        world[3][2] = 0;
+        //world[3][0] = 255.705*pow(2.0, renderParams.zoom);
+        // world[3][0] = 256.0*pow(2.0, renderParams.zoom);
+        // world[3][1] = 256.0*pow(2.0, renderParams.zoom);
+        // world[3][2] = 0;
+        auto worldPos = worldPosFromLatLng(gObjectLatLng);
+        //std::cout << "World " << gObjectLatLng.longitude() << " " << gObjectLatLng.latitude() << std::endl;
+        std::cout << "World " << worldPos.x << " " << worldPos.y << std::endl;
+        //std::cout << "World " << olng << " " << olat << std::endl;
         
+        // world[3][0] = 256.0 * pow(2.0, renderParams.zoom);
+        // world[3][1] = 128.0 * pow(2.0, renderParams.zoom);
+        // world[3][2] = 0;
+
+        world[3][0] = worldPos.x * pow(2.0, renderParams.zoom);
+        world[3][1] = worldPos.y * pow(2.0, renderParams.zoom);
+        world[3][2] = 0;
+
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_WORLD, 1, GL_FALSE, (GLfloat*)world));
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_MVP, 1, GL_FALSE, MVP));
 
@@ -684,7 +726,7 @@ public:
         //GLfloat mvp[16];
         //mbgl::platform::glGetFloatv(GL_PROJECTION_MATRIX, mvp);
 
-        DrawModel(model3D);
+        //DrawModel(model3D);
 
         //glMatrixMode(GL_PROJECTION);
         //glPopMatrix();
@@ -776,14 +818,17 @@ public:
         //glMultMatrixf(MVP);
         //glLoadTransposeMatrixf(MVP);
         //scale = 100.0f;
-        //glScalef(scale, scale, scale); 
+        //glScalef(scale, scale, scale); */
+
+        MBGL_CHECK_ERROR(glUniformMatrix4fv(u_WORLD, 1, GL_FALSE, (GLfloat*)world));
+        MBGL_CHECK_ERROR(glUniformMatrix4fv(u_MVP, 1, GL_FALSE, MVP));
 
         MBGL_CHECK_ERROR(glUseProgram(program));
         MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, mybuffer));
         MBGL_CHECK_ERROR(glEnableVertexAttribArray(a_pos));
         MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 3, GL_FLOAT, GL_FALSE, 0, nullptr));
         mbgl::platform::glDisable(GL_CULL_FACE);  
-        MBGL_CHECK_ERROR(mbgl::platform::glDrawArrays(GL_TRIANGLES, 0, 3)); */
+        MBGL_CHECK_ERROR(mbgl::platform::glDrawArrays(GL_TRIANGLES, 0, 3)); 
     }
 
     void contextLost() override {}
@@ -799,7 +844,11 @@ public:
         }
     }
 
-    void Create3DModelAt(LatLng&) {
+    void Place3DModelAt(LatLng& latLng) {
+        gObjectLatLng = latLng;
+        //std::cout << "obj " << objectLatLng.longitude() << " " << objectLatLng.latitude() << std::endl;
+        //olng = objectLatLng.longitude();
+        //olat = objectLatLng.latitude();
     }
 
     GLuint program = 0;
@@ -811,6 +860,8 @@ public:
 
     Model model3D;
     TinyGLTF loader;
+    double olng = 0.0;
+    double olat = 0.0;
 
     GLuint a_pos = 0;
     GLuint a_uv = 0;
