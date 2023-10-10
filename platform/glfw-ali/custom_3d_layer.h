@@ -25,6 +25,7 @@
 #include <mbgl/gl/vertex_array_extension.hpp>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <filesystem>
 
 using namespace mbgl;
 using namespace mbgl::style;
@@ -63,16 +64,14 @@ public:
                 attribute vec3 a_pos;
                 attribute vec3 a_normal;
                 attribute vec2 a_uv;
-                uniform mat4 MVP;
-                uniform mat4 WORLD;
+                uniform mat4 u_MVP;
+                uniform mat4 u_WORLD;
+                uniform mat4 u_LOCAL;
                 varying vec2 Frag_UV;
                 varying vec3 Frag_Normal;
                 void main() {
-                    gl_Position = MVP * WORLD * vec4(a_pos.xyz,1);
-                    //gl_Position = gl_ModelViewProjectionMatrix * vec4(a_pos.xyz,1);
-                    //gl_Position = gl_ModelViewMatrix * vec4(a_pos.xyz,1);
-	                //Frag_Normal = normalize(mat3(MVP) * a_normal);
-                    Frag_Normal = a_normal;
+                    gl_Position = u_MVP * u_WORLD * u_LOCAL * vec4(a_pos.xyz,1);
+                    Frag_Normal = normalize(u_LOCAL * vec4(a_normal, 0)).xyz;
                     Frag_UV = a_uv;
                 }
             )MBGL_SHADER";
@@ -83,7 +82,7 @@ public:
                 varying vec2 Frag_UV;
                 void main()
                 {
-	                float n_dot_l = max(dot(Frag_Normal, vec3(0, 0, -1)), 0.2);
+	                float n_dot_l = max(dot(-Frag_Normal, vec3(0, 0, -1)), 0.2);
                     gl_FragColor = vec4(n_dot_l, n_dot_l, n_dot_l, 1.0);
                     //gl_FragColor = vec4(Frag_Normal.xyz, 1.0);
                     //gl_FragColor = vec4(1, 0, 0, 0.8);
@@ -106,8 +105,9 @@ public:
             a_uv = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_uv"));
 
             u_texture = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_Texture"));
-            u_MVP = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "MVP"));
-            u_WORLD = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "WORLD"));
+            u_MVP = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_MVP"));
+            u_WORLD = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_WORLD"));
+            u_LOCAL = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_LOCAL"));
             
             // Restore modified GL state
             MBGL_CHECK_ERROR(mbgl::platform::glBindTexture(GL_TEXTURE_2D, last_texture));
@@ -115,7 +115,6 @@ public:
 
             std::string err;
             std::string warn;
-
             bool ret = loader.LoadASCIIFromFile(&model3D, &err, &warn, "./Duck.gltf");
 
             if (!warn.empty()) {
@@ -127,7 +126,6 @@ public:
             }
             assert(ret);
 
-            //modelVaoAndEbos = bindModel(model3D);
             SetupMeshState();
             
             GLFWView::show3D = true;
@@ -281,20 +279,12 @@ public:
         GLint nrmloc = glGetAttribLocation(program, "a_normal");
         GLint uvloc = glGetAttribLocation(program, "a_uv");
 
-        // // GLint diffuseTexLoc = glGetUniformLocation(progId, "diffuseTex");
-        // //GLint isCurvesLoc = glGetUniformLocation(program, "uIsCurves");
-
         programState.attribs["POSITION"] = vtloc;
         programState.attribs["NORMAL"] = nrmloc;
         programState.attribs["TEXCOORD_0"] = uvloc;
-        // gGLProgramState.uniforms["diffuseTex"] = diffuseTexLoc;
-        //gGLProgramState.uniforms["isCurvesLoc"] = isCurvesLoc;
     }
 
     void DrawMesh(tinygltf::Model &model, const tinygltf::Mesh &mesh) {
-        if (programState.uniforms["isCurvesLoc"] >= 0) {
-            glUniform1i(programState.uniforms["isCurvesLoc"], 0);
-        }
 
         for (size_t i = 0; i < mesh.primitives.size(); i++) {
             const tinygltf::Primitive &primitive = mesh.primitives[i];
@@ -424,6 +414,10 @@ public:
 
         if (node.mesh > -1) {
             assert(node.mesh < static_cast<int>(model.meshes.size()));
+            GLfloat local[16];
+            mbgl::platform::glGetFloatv(GL_MODELVIEW_MATRIX, local);
+            MBGL_CHECK_ERROR(glUniformMatrix4fv(u_LOCAL, 1, GL_FALSE, (GLfloat*)local));
+
             DrawMesh(model, model.meshes[node.mesh]);
         }
 
@@ -445,140 +439,6 @@ public:
         for (size_t i = 0; i < scene.nodes.size(); i++) {
             DrawNode(model, model.nodes[scene.nodes[i]]);
         }
-    }
-
-    void build_rotmatrix(float m[4][4], const float q[4]) {
-    m[0][0] = 1.0 - 2.0 * (q[1] * q[1] + q[2] * q[2]);
-    m[0][1] = 2.0 * (q[0] * q[1] - q[2] * q[3]);
-    m[0][2] = 2.0 * (q[2] * q[0] + q[1] * q[3]);
-    m[0][3] = 0.0;
-
-    m[1][0] = 2.0 * (q[0] * q[1] + q[2] * q[3]);
-    m[1][1] = 1.0 - 2.0 * (q[2] * q[2] + q[0] * q[0]);
-    m[1][2] = 2.0 * (q[1] * q[2] - q[0] * q[3]);
-    m[1][3] = 0.0;
-
-    m[2][0] = 2.0 * (q[2] * q[0] - q[1] * q[3]);
-    m[2][1] = 2.0 * (q[1] * q[2] + q[0] * q[3]);
-    m[2][2] = 1.0 - 2.0 * (q[1] * q[1] + q[0] * q[0]);
-    m[2][3] = 0.0;
-
-    m[3][0] = 0.0;
-    m[3][1] = 0.0;
-    m[3][2] = 0.0;
-    m[3][3] = 1.0;
-    }
-
-    static inline float vdot(float a[3], float b[3]) {
-        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    }
-
-    static inline void vcross(float c[3], float a[3], float b[3]) {
-        c[0] = a[1] * b[2] - a[2] * b[1];
-        c[1] = a[2] * b[0] - a[0] * b[2];
-        c[2] = a[0] * b[1] - a[1] * b[0];
-    }
-
-    static inline float vlength(float v[3]) {
-        float len2 = vdot(v, v);
-        if (std::abs(len2) > 1.0e-30) {
-            return sqrt(len2);
-        }
-        return 0.0f;
-    }
-
-    static void vnormalize(float v[3]) {
-        float len = vlength(v);
-        if (std::abs(len) > 1.0e-30) {
-            float inv_len = 1.0 / len;
-            v[0] *= inv_len;
-            v[1] *= inv_len;
-            v[2] *= inv_len;
-        }
-    }
-
-    void transpose(float m[4][4])
-    {
-        float tsrc[16];
-        for (int i = 0; i < 4; i++) {
-            tsrc[i] = m[i][0];
-            tsrc[i + 4] = m[i][1];
-            tsrc[i + 8] = m[i][2];
-            tsrc[i + 12] = m[i][3];
-        }
-        memcpy(m, tsrc, 16 * 4);
-    }
-
-    void myPerspective(float m[4][4], float fov, float aspect, float Near, float Far)
-    {
-        float f = 1.0 / tan(fov / 2.0f);
-
-        m[0][0] = f / aspect;
-        m[0][1] = 0;
-        m[0][2] = 0;
-        m[0][3] = 0;
-
-        m[1][0] = 0;
-        m[1][1] = f;
-        m[1][2] = 0;
-        m[1][3] = 0;
-
-        m[2][0] = 0;
-        m[2][1] = 0;
-        m[2][2] = (Far + Near) / (Near - Far);
-        m[2][3] = 2.0 * Far * Near / (Near - Far);
-
-        m[3][0] = 0;
-        m[3][1] = 0;
-        m[3][2] = -1;
-        m[3][3] = 0;
-    }
-
-    void myLookAt(float m[4][4], float eye[3], float lookat[3], float up[3]) {
-        float F[3];
-        F[0] = lookat[0] - eye[0];
-        F[1] = lookat[1] - eye[1];
-        F[2] = lookat[2] - eye[2];
-        vnormalize(F);
-
-        float UP[3];
-        UP[0] = up[0]; UP[1] = up[1]; UP[2] = up[2];
-        vnormalize(UP);
-
-        float s[3];
-        vcross(s, F, UP);
-
-        float S[3];
-        S[0] = s[0]; S[1] = s[1]; S[2] = s[2];
-        vnormalize(S);
-
-        float u[3];
-        vcross(u, S, F);
-
-        m[0][0] = s[0];
-        m[0][1] = s[1];
-        m[0][2] = s[2];
-        m[0][3] = 0;
-
-        m[1][0] = u[0];
-        m[1][1] = u[1];
-        m[1][2] = u[2];
-        m[1][3] = 0;
-
-        m[2][0] = -F[0];
-        m[2][1] = -F[1];
-        m[2][2] = -F[2];
-        m[2][3] = 0;
-
-        //m[3][0] = -eye[0];
-        //m[3][1] = -eye[1];
-        //m[3][2] = -eye[2];
-        //m[3][3] = 1;
-
-        m[3][0] = 0;
-        m[3][1] = 0;
-        m[3][2] = 0;
-        m[3][3] = 1;
     }
 
     static double mercatorXfromLng(double lng) {
@@ -609,11 +469,7 @@ public:
         GLfloat MVP[16];
         for (int i = 0; i < 16; i++) {
             MVP[i] = renderParams.projectionMatrix[i];
-            // std::cout << renderParams.projectionMatrix[i] << " ,";
-            // if (((i+1) & 3) == 0)
-            //     std::cout << std::endl;
         }
-        // std::cout << std::endl;
 
         // std::cout << "width= " << renderParams.width << std::endl;
         // std::cout << "height= " << renderParams.height << std::endl;
@@ -623,11 +479,9 @@ public:
         // std::cout << "bearing= " << renderParams.bearing << std::endl;
         // std::cout << "pitch= " << renderParams.pitch << std::endl;
         // std::cout << "fov= " << renderParams.fieldOfView << std::endl;
-
         // std::cout << std::endl;
 
-        LatLng latLong {32.0, 52.0};
-
+        //LatLng latLong {32.0, 52.0};
         //auto merc = toMercator(latLong, 0);
         // std::cout << merc[0] << " " << merc[1] << " " << merc[2] << std::endl;
 
@@ -636,28 +490,15 @@ public:
         //auto p = mbgl::Projection::projectedMetersForLatLng(gObjectLatLng);
         //std::cout << "Proj" << p.easting() << " " << p.northing() << std::endl;
 
-        mbgl::util::Camera camera;
-        //camera.
-
         GLfloat world[4][4];
         memset(world, 0, 4 * 4 * sizeof(float));
-        world[0][0] = 10;
-        world[1][1] = -10;
-        world[2][2] = 10;
+        world[0][0] = 100;
+        world[1][1] = -100;
+        world[2][2] = 100;
         world[3][3] = 1;
 
-        //world[3][0] = 255.705*pow(2.0, renderParams.zoom);
-        // world[3][0] = 256.0*pow(2.0, renderParams.zoom);
-        // world[3][1] = 256.0*pow(2.0, renderParams.zoom);
-        // world[3][2] = 0;
         auto worldPos = worldPosFromLatLng(gObjectLatLng);
-        //std::cout << "World " << gObjectLatLng.longitude() << " " << gObjectLatLng.latitude() << std::endl;
-        std::cout << "World " << worldPos.x << " " << worldPos.y << std::endl;
-        //std::cout << "World " << olng << " " << olat << std::endl;
-        
-        // world[3][0] = 256.0 * pow(2.0, renderParams.zoom);
-        // world[3][1] = 128.0 * pow(2.0, renderParams.zoom);
-        // world[3][2] = 0;
+        //std::cout << "World " << worldPos.x << " " << worldPos.y << std::endl;
 
         world[3][0] = worldPos.x * pow(2.0, renderParams.zoom);
         world[3][1] = worldPos.y * pow(2.0, renderParams.zoom);
@@ -666,160 +507,34 @@ public:
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_WORLD, 1, GL_FALSE, (GLfloat*)world));
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_MVP, 1, GL_FALSE, MVP));
 
+        static auto t0 = std::chrono::system_clock::now();
+        auto t1 = std::chrono::system_clock::now();
+        auto dt = t1 - t0;
+        float time = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() / 1000.0f;
 
-    {
-        //float eye[3], lookat[3], up[3];
-        // eye[0] = 0; eye[1] = 0; eye[2] = -5.0f;
-        // lookat[0] = 0; lookat[1] = 0; lookat[2] = 0;
-        //up[0] = 0; up[1] = 1; up[2] = 0;
-        
-        //lookat[0] = renderParams.longitude; lookat[2] = 0; lookat[1] = renderParams.latitude;
-        //eye[0] = renderParams.longitude; eye[2] = 13.0f; eye[1] = renderParams.latitude;
+        GLfloat rot[4][4];
+        memset(rot, 0, 4 * 4 * sizeof(float));
+        rot[0][0] = 1;
+        rot[1][1] = 1;
+        rot[2][2] = 1;
+        rot[3][3] = 1;
 
-        //lookat[0] = 0; lookat[1] = 0; lookat[2] = 0;
-        //eye[0] = 0; eye[1] = 0; eye[2] = 13;
-
-        if (0) {
-            glMatrixMode(GL_PROJECTION);
-            glLoadIdentity();
-            //gluPerspective(45.0, (float)w / (float)h, 0.1f, 1000.0f);
-
-            float proj[16];
-            mbgl::platform::glGetFloatv(GL_PROJECTION_MATRIX, proj);
-
-            float proj2[4][4];
-            myPerspective(proj2, renderParams.fieldOfView, (float)renderParams.width / (float)renderParams.height, 0.1f, 1000.0f);
-            transpose(proj2);
-
-            glMultMatrixf((GLfloat*)proj2);
-
-            //glMatrixMode(GL_MODELVIEW);
-            //glLoadIdentity();
-        }
-
-        // camera(define it in projection matrix)
-        //glMatrixMode(GL_PROJECTION);
-        //glPushMatrix();
-        //gluLookAt(eye[0], eye[1], eye[2], lookat[0], lookat[1], lookat[2], up[0], up[1], up[2]);
-
-        //float view2[4][4];
-        //myLookAt(view2, eye, lookat, up);
-        // glMultMatrixf(&view2[0][0]);
-        // glTranslated(-eye[0], -eye[1], -eye[2]);
-
-        // GLfloat view[16];
-        // mbgl::platform::glGetFloatv(GL_PROJECTION_MATRIX, view);
-
-        // glMatrixMode(GL_MODELVIEW);
-        // glLoadIdentity();
-        //glMultMatrixf(MVP);
-
-        // GLfloat mat[4][4];
-        // build_rotmatrix(mat, curr_quat);
-        // glMultMatrixf(&mat[0][0]);
-
-        //float scale = 1.0;
-        //glScalef(scale, scale, scale);
-
-        //glTranslatef(520, 320, 0);
-
-        //GLfloat mvp[16];
-        //mbgl::platform::glGetFloatv(GL_PROJECTION_MATRIX, mvp);
-
-        //DrawModel(model3D);
-
-        //glMatrixMode(GL_PROJECTION);
-        //glPopMatrix();
-    }
-
-    /*
-    // glMatrixMode(GL_PROJECTION);
-    // glLoadIdentity();
-
-    // glMatrixMode(GL_MODELVIEW);
-    // glLoadIdentity();
-    // glMultMatrixf(MVP);
-
-    //glScalef(1000.0, 1000.0, 1000.0);
-    
-
-    GLfloat view[4][4];
-    //build_rotmatrix(mat, curr_quat);
-
-    float eye[3], lookat[3], up[3];
-    eye[0] = 0; eye[1] = 0; eye[2] = -5.0f;
-    lookat[0] = 0; lookat[1] = 0; lookat[2] = 0;
-    up[0] = 0; up[1] = 1; up[2] = 0;
-    
-    lookat[0] = renderParams.longitude; lookat[2] = renderParams.latitude; lookat[1] = 0;
-    eye[0] = renderParams.longitude; eye[2] = renderParams.latitude; eye[1] = 10.0f;
-
-    LookAt(view, eye, lookat, up);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glMultMatrixf(MVP);
-    //glLoadTransposeMatrixf(MVP);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    //glMultMatrixf(&world[0][0]);
-    //glMultMatrixf(&view[0][0]);
-
-    float scale = 100.0f;
-    glScalef(scale, scale, scale);
-    
-        GLfloat mat[4][4];
-        build_rotmatrix(mat, curr_quat);
-
-        // camera(define it in projection matrix)
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        
-        float eye[3], lookat[3], up[3];
-        eye[0] = 0; eye[1] = 0; eye[2] = -5.0f;
-        lookat[0] = 0; lookat[1] = 0; lookat[2] = 0;
-        up[0] = 0; up[1] = 1; up[2] = 0;
-        
-        LookAt(mat, eye, lookat, up);
+        rot[0][0] = cos(time * 2.0f);
+        rot[0][2] = -sin(time * 2.0f);
+        rot[2][0] = sin(time * 2.0f);
+        rot[2][2] = cos(time * 2.0f);
 
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
-        glMultMatrixf(&mat[0][0]);
+        glLoadMatrixf(&rot[0][0]);
 
-        float scale = 1.0f;
-        glScalef(scale, scale, scale); 
+        mbgl::platform::glEnable(GL_CULL_FACE);
+        mbgl::platform::glCullFace(GL_BACK);  
+        mbgl::platform::glEnable(GL_DEPTH_TEST);  
+        mbgl::platform::glDepthFunc(GL_LESS);  
+        DrawModel(model3D);
 
-        ////DrawModel(model3D);
-
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-
-        float proj[4][4];
-        memset(proj, 0, 4 * 4 * 4);
-        // proj[0][0] = 1;
-        // proj[1][1] = 1;
-        // proj[2][2] = 1;
-        // proj[3][3] = 1;
-        PerspectiveRH(proj, renderParams.fieldOfView, (float)renderParams.width / (float)renderParams.height, 0.01, 1000);
-
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        //glMultMatrixf((GLfloat*)proj);
-        //glMultMatrixf(MVP);
-        //glLoadTransposeMatrixf(MVP);
-
-        mbgl::matrix 
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-        glMultMatrixf((GLfloat*)view);
-        //glMultMatrixf((GLfloat*)world);
-        //glLoadTransposeMatrixf((GLfloat*)world);
-        //glMultMatrixf(MVP);
-        //glLoadTransposeMatrixf(MVP);
-        //scale = 100.0f;
-        //glScalef(scale, scale, scale); */
-
+        #if 0
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_WORLD, 1, GL_FALSE, (GLfloat*)world));
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_MVP, 1, GL_FALSE, MVP));
 
@@ -829,6 +544,7 @@ public:
         MBGL_CHECK_ERROR(glVertexAttribPointer(a_pos, 3, GL_FLOAT, GL_FALSE, 0, nullptr));
         mbgl::platform::glDisable(GL_CULL_FACE);  
         MBGL_CHECK_ERROR(mbgl::platform::glDrawArrays(GL_TRIANGLES, 0, 3)); 
+        #endif
     }
 
     void contextLost() override {}
@@ -846,9 +562,6 @@ public:
 
     void Place3DModelAt(LatLng& latLng) {
         gObjectLatLng = latLng;
-        //std::cout << "obj " << objectLatLng.longitude() << " " << objectLatLng.latitude() << std::endl;
-        //olng = objectLatLng.longitude();
-        //olat = objectLatLng.latitude();
     }
 
     GLuint program = 0;
@@ -872,8 +585,7 @@ public:
     GLuint u_texture = 0;
     GLuint u_MVP = 0;
     GLuint u_WORLD = 0;
-    float curr_quat[4];
-    float prev_quat[4];
+    GLuint u_LOCAL = 0;
 };
 
 #pragma GCC diagnostic pop

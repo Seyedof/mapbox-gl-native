@@ -49,3 +49,9 @@
 [submodule "vendor/benchmark"]
 	path = vendor/benchmark
 	url = https://github.com/Seyedof/benchmark.gitcd 
+[submodule "platform/glfw-ali/third-party/tinygltf"]
+	path = platform/glfw-ali/third-party/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
+[submodule "platform/glfw-ali/third-party/imgui"]
+	path = platform/glfw-ali/third-party/imgui
+	url = https://github.com/ocornut/imgui.git

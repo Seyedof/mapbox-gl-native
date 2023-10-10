@@ -1194,7 +1194,8 @@ void GLFWView::updateGui() {
             ImVec2 pos = io.MousePos;
             auto latLong = map->latLngForPixel({pos.x, pos.y});
             
-            ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.2, 0.5, 1.0, 0.9));
+            //ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.2, 0.5, 1.0, 0.9));
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(1.0, 0.5, 0.2, 0.9));
             ImGui::BeginTooltip();
             ImGui::Text("%f, %f", latLong.latitude(), latLong.longitude());
             ImGui::EndTooltip();
