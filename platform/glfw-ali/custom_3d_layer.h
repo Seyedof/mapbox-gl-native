@@ -34,7 +34,7 @@ using namespace tinygltf;
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
-LatLng gObjectLatLng{0.0, 0.0};
+LatLng gObjectLatLng{51.612, -0.208};
 
 class Custom3DLayer : public mbgl::style::CustomLayerHost {
 public:
@@ -64,13 +64,13 @@ public:
                 attribute vec3 a_pos;
                 attribute vec3 a_normal;
                 attribute vec2 a_uv;
-                uniform mat4 u_MVP;
+                uniform mat4 u_VIEWPROJ;
                 uniform mat4 u_WORLD;
                 uniform mat4 u_LOCAL;
                 varying vec2 Frag_UV;
                 varying vec3 Frag_Normal;
                 void main() {
-                    gl_Position = u_MVP * u_WORLD * u_LOCAL * vec4(a_pos.xyz,1);
+                    gl_Position = u_VIEWPROJ * u_WORLD * u_LOCAL * vec4(a_pos.xyz,1);
                     Frag_Normal = normalize(u_LOCAL * vec4(a_normal, 0)).xyz;
                     Frag_UV = a_uv;
                 }
@@ -105,7 +105,7 @@ public:
             a_uv = MBGL_CHECK_ERROR(mbgl::platform::glGetAttribLocation(program, "a_uv"));
 
             u_texture = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_Texture"));
-            u_MVP = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_MVP"));
+            u_VIEWPROJ = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_VIEWPROJ"));
             u_WORLD = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_WORLD"));
             u_LOCAL = MBGL_CHECK_ERROR(mbgl::platform::glGetUniformLocation(program, "u_LOCAL"));
             
@@ -449,26 +449,17 @@ public:
         return (180.0 - (180.0 / M_PI * std::log(std::tan(M_PI_4 + lat * M_PI / 360.0)))) / 360.0;
     }
 
-    static vec3 toMercator(const LatLng& location, double altitudeMeters) {
-        const double pixelsPerMeter = 1.0 / Projection::getMetersPerPixelAtLatitude(location.latitude(), 0.0);
-        const double worldSize = Projection::worldSize(std::pow(2.0, 0.0));
-
-        return {{mercatorXfromLng(location.longitude()),
-                mercatorYfromLat(location.latitude()),
-                altitudeMeters * pixelsPerMeter / worldSize}};
-    }
-
     Point<double> worldPosFromLatLng(const LatLng& latLng) {
-        double latitude = latLng.latitude();
-        return {256.0 * latLng.longitude() / 180.0 + 256.0, -256.0 * latitude / 85.0 + 256.0f};
+        const double worldSize = Projection::worldSize(std::pow(2.0, 0.0));
+        return {mercatorXfromLng(latLng.longitude()) * worldSize, mercatorYfromLat(latLng.latitude()) * worldSize};
     }
 
     void render(const mbgl::style::CustomLayerRenderParameters& renderParams)  override {
         MBGL_CHECK_ERROR(glUseProgram(program));
 
-        GLfloat MVP[16];
+        GLfloat viewProj[16];
         for (int i = 0; i < 16; i++) {
-            MVP[i] = renderParams.projectionMatrix[i];
+            viewProj[i] = renderParams.projectionMatrix[i];
         }
 
         // std::cout << "width= " << renderParams.width << std::endl;
@@ -481,36 +472,26 @@ public:
         // std::cout << "fov= " << renderParams.fieldOfView << std::endl;
         // std::cout << std::endl;
 
-        //LatLng latLong {32.0, 52.0};
-        //auto merc = toMercator(latLong, 0);
-        // std::cout << merc[0] << " " << merc[1] << " " << merc[2] << std::endl;
-
-        //LatLng latLong2 {renderParams.latitude, renderParams.longitude};
-        //Point<double> p = mbgl::Projection::project(latLong2, pow(2.0, renderParams.zoom));
-        //auto p = mbgl::Projection::projectedMetersForLatLng(gObjectLatLng);
-        //std::cout << "Proj" << p.easting() << " " << p.northing() << std::endl;
-
         GLfloat world[4][4];
         memset(world, 0, 4 * 4 * sizeof(float));
-        world[0][0] = 100;
+        world[0][0] = 100; // Scale the model to 100X to make it visible in demo
         world[1][1] = -100;
         world[2][2] = 100;
         world[3][3] = 1;
 
         auto worldPos = worldPosFromLatLng(gObjectLatLng);
-        //std::cout << "World " << worldPos.x << " " << worldPos.y << std::endl;
 
         world[3][0] = worldPos.x * pow(2.0, renderParams.zoom);
         world[3][1] = worldPos.y * pow(2.0, renderParams.zoom);
         world[3][2] = 0;
 
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_WORLD, 1, GL_FALSE, (GLfloat*)world));
-        MBGL_CHECK_ERROR(glUniformMatrix4fv(u_MVP, 1, GL_FALSE, MVP));
+        MBGL_CHECK_ERROR(glUniformMatrix4fv(u_VIEWPROJ, 1, GL_FALSE, viewProj));
 
         static auto t0 = std::chrono::system_clock::now();
         auto t1 = std::chrono::system_clock::now();
-        auto dt = t1 - t0;
-        float time = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() / 1000.0f;
+        std::chrono::duration<float> dt = t1 - t0;
+        float time = dt.count();
 
         GLfloat rot[4][4];
         memset(rot, 0, 4 * 4 * sizeof(float));
@@ -536,7 +517,7 @@ public:
 
         #if 0
         MBGL_CHECK_ERROR(glUniformMatrix4fv(u_WORLD, 1, GL_FALSE, (GLfloat*)world));
-        MBGL_CHECK_ERROR(glUniformMatrix4fv(u_MVP, 1, GL_FALSE, MVP));
+        MBGL_CHECK_ERROR(glUniformMatrix4fv(u_VIEWPROJ, 1, GL_FALSE, viewProj));
 
         MBGL_CHECK_ERROR(glUseProgram(program));
         MBGL_CHECK_ERROR(glBindBuffer(GL_ARRAY_BUFFER, mybuffer));
@@ -573,8 +554,6 @@ public:
 
     Model model3D;
     TinyGLTF loader;
-    double olng = 0.0;
-    double olat = 0.0;
 
     GLuint a_pos = 0;
     GLuint a_uv = 0;
@@ -583,7 +562,7 @@ public:
     GLuint mybuffer = 0;
 
     GLuint u_texture = 0;
-    GLuint u_MVP = 0;
+    GLuint u_VIEWPROJ = 0;
     GLuint u_WORLD = 0;
     GLuint u_LOCAL = 0;
 };
