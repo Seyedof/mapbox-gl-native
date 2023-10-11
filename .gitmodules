@@ -55,3 +55,6 @@
 [submodule "platform/glfw-ali/third-party/imgui"]
 	path = platform/glfw-ali/third-party/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "platform/glfw-ali/third-party/glm"]
+	path = platform/glfw-ali/third-party/glm
+	url = https://github.com/g-truc/glm.git
